@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('.env').config();
 const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const QRCode = require("qrcode");
 const fs = require("fs");
