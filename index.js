@@ -1,113 +1,130 @@
-import discord
-from discord.ext import commands
-import qrcode
-import os
-import json
+const { Client, GatewayIntentBits, Partials } = require("discord.js");
+const QRCode = require("qrcode");
+const fs = require("fs");
+const path = require("path");
 
-# ---------- BASIC SETUP ----------
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
+  ],
+  partials: [Partials.Channel]
+});
 
-bot = commands.Bot(command_prefix=".", intents=intents)
+const PREFIX = ".";
+const UPI_ID = "dreamhelper@upi"; // 🔴 apni UPI id yaha daalo
 
-UPI_ID = "yourupi@bank"  # 🔴 apni UPI ID yaha daalo
+// ---------- FOLDERS ----------
+if (!fs.existsSync("payments")) fs.mkdirSync("payments");
+if (!fs.existsSync("data")) fs.mkdirSync("data");
 
-# ---------- FILE SETUP ----------
-os.makedirs("payments", exist_ok=True)
-os.makedirs("data", exist_ok=True)
+// ---------- JSON HELPERS ----------
+function loadJSON(file, def) {
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(def, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(file));
+}
 
-def load_json(file, default):
-    if not os.path.exists(file):
-        with open(file, "w") as f:
-            json.dump(default, f)
-    with open(file, "r") as f:
-        return json.load(f)
+function saveJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
 
-def save_json(file, data):
-    with open(file, "w") as f:
-        json.dump(data, f, indent=4)
+let owners = loadJSON("data/owners.json", []);
+let whitelist = loadJSON("data/whitelist.json", []);
 
-owners = load_json("data/owners.json", [])
-whitelist = load_json("data/whitelist.json", [])
+// ---------- EVENTS ----------
+client.once("ready", () => {
+  console.log(`✅ Bot Online: ${client.user.tag}`);
+});
 
-# ---------- EVENTS ----------
-@bot.event
-async def on_ready():
-    print(f"✅ Bot Online: {bot.user}")
+client.on("guildMemberAdd", async member => {
+  const role = member.guild.roles.cache.find(r => r.name === "Member");
+  if (role) await member.roles.add(role);
 
-@bot.event
-async def on_member_join(member):
-    role = discord.utils.get(member.guild.roles, name="Member")
-    if role:
-        await member.add_roles(role)
+  const channel = member.guild.channels.cache.find(c => c.name === "welcome");
+  if (channel) channel.send(`🎉 Welcome ${member} to the server!`);
+});
 
-    channel = discord.utils.get(member.guild.text_channels, name="welcome")
-    if channel:
-        await channel.send(f"🎉 Welcome {member.mention} to the server!")
+// ---------- MESSAGE HANDLER ----------
+client.on("messageCreate", async message => {
+  if (!message.content.startsWith(PREFIX) || message.author.bot) return;
 
-# ---------- OWNER CHECK ----------
-def is_owner(ctx):
-    return ctx.author.id in owners
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const cmd = args.shift().toLowerCase();
 
-# ---------- OWNER COMMANDS ----------
-@bot.command()
-async def addowner(ctx, member: discord.Member):
-    if not is_owner(ctx):
-        return await ctx.send("❌ Owner only command")
-    owners.append(member.id)
-    save_json("data/owners.json", owners)
-    await ctx.send(f"✅ {member.name} added as owner")
+  const isOwner = owners.includes(message.author.id);
 
-# ---------- WHITELIST ----------
-@bot.command()
-async def whitelist_add(ctx, member: discord.Member):
-    if not is_owner(ctx):
-        return await ctx.send("❌ Owner only")
-    whitelist.append(member.id)
-    save_json("data/whitelist.json", whitelist)
-    await ctx.send("✅ User whitelisted")
+  // ---------- ADD OWNER ----------
+  if (cmd === "addowner") {
+    if (!isOwner) return message.reply("❌ Owner only command");
+    const member = message.mentions.users.first();
+    if (!member) return message.reply("❌ Mention a user");
 
-# ---------- SECURITY ----------
-@bot.command()
-async def kick(ctx, member: discord.Member, *, reason="No reason"):
-    if not is_owner(ctx):
-        return await ctx.send("❌ No permission")
-    await member.kick(reason=reason)
-    await ctx.send(f"👢 {member.name} kicked")
+    owners.push(member.id);
+    saveJSON("data/owners.json", owners);
+    message.reply(`✅ ${member.username} added as owner`);
+  }
 
-# ---------- PAYMENT (UPI QR) ----------
-@bot.command()
-async def payamount(ctx, username: str, amount: int):
-    if ctx.author.id not in whitelist and not is_owner(ctx):
-        return await ctx.send("❌ You are not whitelisted")
+  // ---------- WHITELIST ----------
+  if (cmd === "whitelist_add") {
+    if (!isOwner) return message.reply("❌ Owner only");
+    const member = message.mentions.users.first();
+    if (!member) return message.reply("❌ Mention a user");
 
-    if amount <= 0:
-        return await ctx.send("❌ Invalid amount")
+    whitelist.push(member.id);
+    saveJSON("data/whitelist.json", whitelist);
+    message.reply("✅ User whitelisted");
+  }
 
-    upi_link = f"upi://pay?pa={UPI_ID}&pn={username}&am={amount}&cu=INR"
-    qr_path = f"payments/{username}_{amount}.png"
+  // ---------- KICK ----------
+  if (cmd === "kick") {
+    if (!isOwner) return message.reply("❌ No permission");
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("❌ Mention a member");
 
-    img = qrcode.make(upi_link)
-    img.save(qr_path)
+    await member.kick();
+    message.reply(`👢 ${member.user.username} kicked`);
+  }
 
-    await ctx.send(
-        f"💸 **UPI Payment Request**\n"
-        f"👤 Name: {username}\n"
-        f"💰 Amount: ₹{amount}",
-        file=discord.File(qr_path)
-    )
+  // ---------- PAYMENT ----------
+  if (cmd === "payamount") {
+    if (!isOwner && !whitelist.includes(message.author.id))
+      return message.reply("❌ You are not whitelisted");
 
-# ---------- HELP ----------
-@bot.command()
-async def panel(ctx):
-    await ctx.send(
-        "**📌 BOT PANEL**\n"
-        "🔐 Security: `.kick`\n"
-        "👤 Whitelist: `.whitelist_add`\n"
-        "💰 Payment: `.payamount name amount`\n"
-        "👑 Owner: `.addowner`\n"
-    )
+    const username = args[0];
+    const amount = parseInt(args[1]);
 
-# ---------- RUN ----------
-bot.run("YOUR_BOT_TOKEN")
+    if (!username || isNaN(amount) || amount <= 0)
+      return message.reply("❌ Usage: .payamount name amount");
+
+    const upiLink = `upi://pay?pa=${UPI_ID}&pn=${username}&am=${amount}&cu=INR`;
+    const filePath = path.join("payments", `${username}_${amount}.png`);
+
+    await QRCode.toFile(filePath, upiLink);
+
+    message.channel.send({
+      content:
+        `💸 **UPI Payment Request**\n` +
+        `👤 Name: ${username}\n` +
+        `💰 Amount: ₹${amount}`,
+      files: [filePath]
+    });
+  }
+
+  // ---------- PANEL ----------
+  if (cmd === "panel") {
+    message.channel.send(
+      "**📌 BOT PANEL**\n" +
+      "🔐 Security: `.kick`\n" +
+      "👤 Whitelist: `.whitelist_add`\n" +
+      "💰 Payment: `.payamount name amount`\n" +
+      "👑 Owner: `.addowner`"
+    );
+  }
+});
+
+// ---------- RUN ----------
+client.login(process.env.BOT_TOKEN);
