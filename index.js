@@ -15,7 +15,7 @@ const client = new Client({
 });
 
 const PREFIX = ".";
-const UPI_ID = "dreamhelper@upi"; // 🔴 apni UPI ID yaha daalo
+const UPI_ID = "dreamhelper@upi";
 
 // ---------- FOLDERS ----------
 if (!fs.existsSync("payments")) fs.mkdirSync("payments");
@@ -23,7 +23,9 @@ if (!fs.existsSync("data")) fs.mkdirSync("data");
 
 // ---------- JSON HELPERS ----------
 function loadJSON(file, def) {
-  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(def, null, 2));
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(def, null, 2));
+  }
   return JSON.parse(fs.readFileSync(file));
 }
 
@@ -36,7 +38,7 @@ let whitelist = loadJSON("data/whitelist.json", []);
 
 // ---------- EVENTS ----------
 client.once("ready", () => {
-  console.log(`✅ Bot Online: ${client.user.tag}`);
+  console.log(✅ Bot Online: ${client.user.tag});
 });
 
 client.on("guildMemberAdd", async member => {
@@ -44,7 +46,7 @@ client.on("guildMemberAdd", async member => {
   if (role) await member.roles.add(role);
 
   const channel = member.guild.channels.cache.find(c => c.name === "welcome");
-  if (channel) channel.send(`🎉 Welcome ${member} to the server!`);
+  if (channel) channel.send(🎉 Welcome ${member} to the server!);
 });
 
 // ---------- MESSAGE HANDLER ----------
@@ -53,9 +55,9 @@ client.on("messageCreate", async message => {
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
+
   const isOwner = owners.includes(message.author.id);
 
-  // ---------- ADD OWNER ----------
   if (cmd === "addowner") {
     if (!isOwner) return message.reply("❌ Owner only command");
     const member = message.mentions.users.first();
@@ -66,10 +68,9 @@ client.on("messageCreate", async message => {
       saveJSON("data/owners.json", owners);
     }
 
-    message.reply(`✅ ${member.username} added as owner`);
+    message.reply(✅ ${member.username} added as owner);
   }
 
-  // ---------- WHITELIST ----------
   if (cmd === "whitelist_add") {
     if (!isOwner) return message.reply("❌ Owner only");
     const member = message.mentions.users.first();
@@ -83,17 +84,15 @@ client.on("messageCreate", async message => {
     message.reply("✅ User whitelisted");
   }
 
-  // ---------- KICK ----------
   if (cmd === "kick") {
     if (!isOwner) return message.reply("❌ No permission");
     const member = message.mentions.members.first();
     if (!member) return message.reply("❌ Mention a member");
 
     await member.kick();
-    message.reply(`👢 ${member.user.username} kicked`);
+    message.reply(👢 ${member.user.username} kicked);
   }
 
-  // ---------- PAYMENT ----------
   if (cmd === "payamount") {
     if (!isOwner && !whitelist.includes(message.author.id))
       return message.reply("❌ You are not whitelisted");
@@ -104,23 +103,23 @@ client.on("messageCreate", async message => {
     if (!username || isNaN(amount) || amount <= 0)
       return message.reply("❌ Usage: .payamount name amount");
 
-    const upiLink = `upi://pay?pa=${UPI_ID}&pn=${username}&am=${amount}&cu=INR`;
-    const filePath = path.join("payments", `${username}_${amount}.png`);
+    const upiLink = upi://pay?pa=${UPI_ID}&pn=${username}&am=${amount}&cu=INR;
+    const filePath = path.join("payments", ${username}_${amount}.png);
 
     await QRCode.toFile(filePath, upiLink);
 
     message.channel.send({
-      content: `💸 **UPI Payment Request**
-👤 Name: ${username}
-💰 Amount: ₹${amount}`,
+      content:
+        💸 **UPI Payment Request**\n +
+        👤 Name: ${username}\n +
+        💰 Amount: ₹${amount},
       files: [filePath]
     });
   }
 
-  // ---------- PANEL ----------
   if (cmd === "panel") {
     message.channel.send(
-      "**📌 BOT PANEL**\n" +
+      "*📌 EXC GUARD PANEL*\n" +
       "🔐 Security: .kick\n" +
       "👤 Whitelist: .whitelist_add\n" +
       "💰 Payment: .payamount name amount\n" +
@@ -130,4 +129,4 @@ client.on("messageCreate", async message => {
 });
 
 // ---------- RUN ----------
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.TOKEN);
