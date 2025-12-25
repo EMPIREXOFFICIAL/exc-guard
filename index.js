@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const QRCode = require("qrcode");
 const fs = require("fs");
@@ -127,6 +128,7 @@ client.on("messageCreate", async message => {
 });
 
 // ---------- RUN ----------
-client.login("MTQ1Mzg1NTQ0NDEwNzAwNjA5NQ.GdP49c.4UJgKllZdY5CVl5ttD3mS5bvGtXZPlVrO4d84w");
+client.login(process.env.BOT_TOKEN);
+
 
 
